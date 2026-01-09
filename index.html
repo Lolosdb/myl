@@ -14,112 +14,75 @@
   <link rel="manifest" href="./manifest.webmanifest">
 
   <style>
-    /* --- CORRECCIONES QUIRÚRGICAS (Sin romper el resto) --- */
-
-    /* 1. FECHAS (Formato limpio) */
-    .fecha-destacada {
-        font-size: 1.05rem !important;
-        font-weight: 600 !important;
-        color: #1e293b !important;
-    }
+    /* --- ESTILOS AUXILIARES (Solo para lo nuevo) --- */
     
-    /* 2. TEXTOS FIJOS */
-    .texto-anual-fixed {
-        text-transform: uppercase !important;
-        font-weight: 700 !important;
-        color: #3b82f6 !important; /* Azul original del botón */
-    }
-
-    /* 3. TOP CLIENTES */
-    .top-client-name {
-        font-size: 1rem !important; 
-        font-weight: 700 !important;
-        color: #0f172a !important;
+    /* 1. Estilo para el contador de pedidos que vamos a añadir */
+    .contador-pedidos-extra {
         display: block;
-        line-height: 1.2;
-        margin-bottom: 2px;
-    }
-    .importe-top-ajustado {
-        font-size: 0.9rem !important;
-        font-weight: 700 !important;
-        color: #2563eb !important;
-        display: block;
-    }
-
-    /* 4. PEDIDOS EN COMUNIDADES */
-    .contador-extra-simple {
-        display: block;
-        width: 100%;
-        margin-top: 8px;
-        padding-top: 8px;
-        border-top: 1px dashed #e2e8f0;
-        font-size: 0.9rem;
-        color: #475569;
+        margin-top: 5px;
+        padding-top: 5px;
+        border-top: 1px solid #e2e8f0;
+        color: #475569; /* Gris oscuro elegante */
+        font-size: 0.85rem;
         font-weight: 700;
     }
 
-    /* 5. ARREGLO MENÚ (Específico para Totales y Factura) */
-    .menu-btn-clean {
-        background: transparent !important;
-        background-color: transparent !important;
-        box-shadow: none !important;
-        border: none !important;
-        border-radius: 0 !important;
-    }
-    
-    /* Forzar que el contenido sea blanco (solo dentro del botón limpiado) */
-    .menu-btn-clean * {
-        color: #ffffff !important;
-        fill: #ffffff !important;
-    }
-    
-    /* Filtro para iconos SVG oscuros */
-    .menu-btn-clean svg, .menu-btn-clean img {
-        filter: brightness(0) invert(1) !important;
+    /* 2. Clase para corregir el tamaño del Euro en el menú */
+    .euro-fix-menu {
+        font-size: 24px !important;
+        display: inline-block;
+        line-height: 1;
+        margin-bottom: 2px;
     }
 
-    /* EL ARREGLO DEL EURO: Hacemos el símbolo más grande */
-    .euro-icon-big {
-        font-size: 26px !important; /* Aumentado para igualar iconos */
-        line-height: 1 !important;
-        display: inline-block !important;
-        font-weight: 400 !important;
-        font-family: sans-serif !important;
+    /* 3. Textos corregidos */
+    .texto-anual {
+        text-transform: uppercase !important;
+        font-weight: 700 !important;
+        color: #3b82f6 !important; /* Azul botón */
     }
     
-    /* Indicador de activo */
-    .menu-active-border {
-        border-bottom: 3px solid white !important;
-        padding-bottom: 4px !important;
+    /* 4. Fechas */
+    .fecha-espanol {
+        font-weight: 600;
+        color: #1e293b;
     }
-
   </style>
 </head>
 <body>
   <div id="root"></div>
 
   <script>
-    // -----------------------------------------------------------
-    // LÓGICA DE DATOS
-    // -----------------------------------------------------------
-    function getContadores() {
+    // ==========================================
+    // 1. CÁLCULO DE PEDIDOS (Lógica interna)
+    // ==========================================
+    function contarPedidos() {
         const resultado = { 'ASTURIAS': 0, 'CANTABRIA': 0, 'LEON': 0, 'GALICIA': 0 };
         try {
             const raw = localStorage.getItem('ventas-storage');
             if (!raw) return resultado;
+            
             const db = JSON.parse(raw);
-            if (!db.orders || !Array.isArray(db.orders)) return resultado;
+            if (!db.orders) return resultado;
 
             const anio = localStorage.getItem('selectedYear') || new Date().getFullYear().toString();
-            const mapa = {};
-            if(db.clients) db.clients.forEach(c => { 
-                if(c.name && c.province) mapa[c.name.trim().toUpperCase()] = c.province.trim().toUpperCase(); 
-            });
+            
+            // Mapear clientes a provincias
+            const mapaClientes = {};
+            if(db.clients) {
+                db.clients.forEach(c => {
+                    if(c.name && c.province) {
+                        mapaClientes[c.name.trim().toUpperCase()] = c.province.trim().toUpperCase();
+                    }
+                });
+            }
 
+            // Contar
             db.orders.forEach(o => {
                 if (o.date && String(o.date).startsWith(anio)) {
-                    const cli = o.clientName ? o.clientName.trim().toUpperCase() : '';
-                    const prov = mapa[cli];
+                    const nombreCliente = o.clientName ? o.clientName.trim().toUpperCase() : '';
+                    const prov = mapaClientes[nombreCliente];
+                    
                     if (prov) {
                         if (prov.includes('ASTURIAS')) resultado['ASTURIAS']++;
                         else if (prov.includes('CANTABRIA')) resultado['CANTABRIA']++;
@@ -128,153 +91,152 @@
                     }
                 }
             });
-        } catch(e) { console.log(e); }
+        } catch(e) { console.error(e); }
         return resultado;
     }
 
-    // -----------------------------------------------------------
-    // INTERVALO DE MANTENIMIENTO (Cada 400ms)
-    // -----------------------------------------------------------
+    // ==========================================
+    // 2. EL "ARREGLADOR" VISUAL (Se ejecuta cada 0.5s)
+    // ==========================================
     setInterval(() => {
         
-        // --- 1. ARREGLO MENÚ (Solo Totales, Factura, etc.) ---
-        const menuItems = ["Totales", "Factura", "Dash", "Pedidos", "Clientes", "Alertas", "Objetivos", "Mapa"];
+        // --- A. ARREGLAR MENÚ INFERIOR (Totales y Factura) ---
+        // Buscamos específicamente esos textos
+        const etiquetasMenu = ["Totales", "Factura", "Dash", "Pedidos", "Clientes", "Alertas", "Objetivos", "Mapa"];
         
-        menuItems.forEach(label => {
-            // Buscar por texto exacto
-            const elements = Array.from(document.querySelectorAll('span, p, div')).filter(el => el.textContent.trim() === label);
+        etiquetasMenu.forEach(label => {
+            // Buscar elementos que contengan ese texto exacto
+            const elementosTexto = Array.from(document.querySelectorAll('span, div, p, a')).filter(el => el.textContent.trim() === label);
             
-            elements.forEach(textEl => {
-                const btn = textEl.closest('a') || textEl.closest('[role="button"]') || textEl.parentElement;
+            elementosTexto.forEach(textoEl => {
+                // Subir al botón contenedor
+                const boton = textoEl.closest('a') || textoEl.closest('[role="button"]') || textoEl.parentElement;
                 
-                if (btn) {
-                    // Aplicar limpieza
-                    if (!btn.classList.contains('menu-btn-clean')) {
-                        btn.classList.add('menu-btn-clean');
-                    }
-
-                    // Chequear activo (color de fondo azul o clase active)
-                    const style = window.getComputedStyle(btn);
-                    if (style.backgroundColor.includes('23') || style.backgroundColor.includes('37') || btn.className.includes('active')) {
-                        if (!btn.classList.contains('menu-active-border')) btn.classList.add('menu-active-border');
-                    } else {
-                        btn.classList.remove('menu-active-border');
-                    }
-
-                    // CASO ESPECÍFICO: El símbolo Euro de "Totales"
-                    if (label === "Totales") {
-                        // Buscar el elemento que contiene el €
-                        const euroEl = Array.from(btn.querySelectorAll('*')).find(x => x.textContent.includes('€') && x !== textEl);
-                        if (euroEl && !euroEl.classList.contains('euro-icon-big')) {
-                            euroEl.classList.add('euro-icon-big');
+                if (boton) {
+                    // 1. Limpieza de estilo (Quitar fondo gris/azul raro)
+                    boton.style.backgroundColor = 'transparent';
+                    boton.style.boxShadow = 'none';
+                    boton.style.border = 'none';
+                    
+                    // 2. Forzar contenido a BLANCO
+                    const hijos = boton.querySelectorAll('*');
+                    hijos.forEach(hijo => {
+                        // Si es texto o div genérico
+                        if(hijo.tagName !== 'SVG' && hijo.tagName !== 'IMG') {
+                            hijo.style.color = '#ffffff';
                         }
+                        // Si es el SÍMBOLO EURO (€) en Totales
+                        if (label === "Totales" && hijo.textContent.includes('€')) {
+                            if (!hijo.classList.contains('euro-fix-menu')) {
+                                hijo.classList.add('euro-fix-menu');
+                            }
+                        }
+                    });
+
+                    // 3. Iconos SVG -> Blancos (Usando filtro inversión)
+                    const iconos = boton.querySelectorAll('svg, img');
+                    iconos.forEach(ico => {
+                        ico.style.filter = 'brightness(0) invert(1)';
+                    });
+
+                    // 4. Indicador de activo (borde inferior)
+                    // Comprobamos si tiene alguna clase "active" o estilo azul
+                    const estiloComp = window.getComputedStyle(boton);
+                    // Si el CSS original intentaba ponerle fondo azul o es la ruta activa
+                    if (location.pathname.includes(label.toLowerCase()) || boton.className.includes('active') || estiloComp.backgroundColor.includes('235')) {
+                        boton.style.borderBottom = '3px solid white';
+                        boton.style.paddingBottom = '4px';
+                    } else {
+                        boton.style.borderBottom = 'none';
                     }
                 }
             });
         });
 
-        // --- 2. PEDIDOS EN COMUNIDADES ---
-        const datos = getContadores();
+        // --- B. INYECTAR CONTADOR PEDIDOS EN TARJETAS ---
+        const contadores = contarPedidos();
         const zonas = ['ASTURIAS', 'CANTABRIA', 'LEON', 'LEÓN', 'GALICIA'];
 
         document.querySelectorAll('h3, span, div, p').forEach(el => {
-            const txt = el.textContent.trim().toUpperCase();
-            if (zonas.includes(txt)) {
+            const texto = el.textContent.trim().toUpperCase();
+            if (zonas.includes(texto)) {
                 
-                // Encontrar tarjeta contenedora
-                // Subimos hasta encontrar un contenedor con sombra o fondo blanco
-                let card = el.parentElement;
-                let found = false;
+                // Encontrar la tarjeta padre (contenedor blanco con sombra)
+                let tarjeta = el.parentElement;
+                let encontrada = false;
+                
+                // Subimos niveles buscando el contenedor
                 for(let i=0; i<5; i++) {
-                   if (!card) break;
-                   const style = window.getComputedStyle(card);
-                   // Detectar si es una tarjeta (fondo blanco o sombra)
-                   if (style.backgroundColor.includes('255, 255, 255') || style.boxShadow !== 'none') {
-                       found = true;
-                       break;
-                   }
-                   card = card.parentElement;
+                    if(!tarjeta) break;
+                    const estilo = window.getComputedStyle(tarjeta);
+                    // Detectar tarjeta por fondo blanco o sombra
+                    if (estilo.backgroundColor.includes('255, 255, 255') || estilo.boxShadow !== 'none') {
+                        encontrada = true;
+                        break;
+                    }
+                    tarjeta = tarjeta.parentElement;
                 }
 
-                if (found && card) {
-                    const key = (txt === 'LEÓN') ? 'LEON' : txt;
-                    const cantidad = datos[key];
+                if (encontrada && tarjeta) {
+                    // Datos
+                    const key = (texto === 'LEÓN') ? 'LEON' : texto;
+                    const numPedidos = contadores[key];
 
-                    // Buscar si ya insertamos el contador
-                    let contador = card.querySelector('.contador-extra-simple');
+                    // Buscar precio para ordenarlo
+                    const precio = Array.from(tarjeta.querySelectorAll('*')).find(x => x.textContent.includes('€') && x !== tarjeta);
                     
-                    if (!contador) {
-                        contador = document.createElement('div');
-                        contador.className = 'contador-extra-simple';
-                        card.appendChild(contador); // Lo añadimos AL FINAL de la tarjeta
-                    }
-
-                    // Actualizar texto
-                    const nuevoTexto = `📦 ${cantidad} Pedidos`;
-                    if (contador.textContent !== nuevoTexto) {
-                        contador.textContent = nuevoTexto;
-                    }
-                    
-                    // Asegurar que el PRECIO esté visible y ordenado
-                    const precio = Array.from(card.querySelectorAll('div, span')).find(x => x.textContent.includes('€'));
+                    // Si el precio existe y no está justo debajo del título, moverlo
                     if (precio && el.nextElementSibling !== precio) {
-                         // Mover precio justo debajo del título si no está ahí
-                         el.after(precio);
-                         precio.style.display = "block";
-                         precio.style.fontSize = "1.2rem";
-                         precio.style.fontWeight = "bold";
-                         precio.style.color = "#2563eb";
+                        el.after(precio); // Mover precio debajo del título
+                        precio.style.display = 'block';
+                        precio.style.marginBottom = '5px';
+                    }
+
+                    // Buscar o crear el contador
+                    let divContador = tarjeta.querySelector('.contador-pedidos-extra');
+                    if (!divContador) {
+                        divContador = document.createElement('div');
+                        divContador.className = 'contador-pedidos-extra';
+                        tarjeta.appendChild(divContador);
+                    }
+
+                    // Actualizar número
+                    const textoContador = `📦 ${numPedidos} Pedidos`;
+                    if (divContador.textContent !== textoContador) {
+                        divContador.textContent = textoContador;
                     }
                 }
             }
         });
 
-        // --- 3. TEXTOS Y FECHAS (Standard) ---
-        // Histórico -> Anual
+        // --- C. TEXTOS (Histórico -> Anual) ---
         document.querySelectorAll('*').forEach(el => {
-            if(el.children.length === 0 && el.textContent.trim().length > 0) {
+            if (el.children.length === 0 && el.textContent.trim()) {
                 const t = el.textContent.trim().toUpperCase();
+                
                 if (t === "HISTÓRICO" || t === "HISTORICO") {
                     el.textContent = "ANUAL";
-                    el.classList.add('texto-anual-fixed');
+                    el.classList.add('texto-anual');
                 }
+                
                 if (t === "MEDIA MENSUAL GLOBAL") {
-                     el.textContent = "VENTA MEDIA ANUAL";
+                    el.textContent = "VENTA MEDIA ANUAL";
                 }
             }
         });
 
-        // Fechas
-        document.querySelectorAll('td, div, span, p').forEach(el => {
+        // --- D. FECHAS (YYYY-MM-DD -> DD-MM-YYYY) ---
+        document.querySelectorAll('td, span, p').forEach(el => {
             const t = el.textContent.trim();
+            // Regex formato fecha ISO
             if (/^\d{4}-\d{2}-\d{2}$/.test(t)) {
                 const [y, m, d] = t.split('-');
                 el.textContent = `${d}-${m}-${y}`;
-                el.classList.add('fecha-destacada');
+                el.classList.add('fecha-espanol');
             }
         });
 
-        // Top Clientes
-        const headerTop = Array.from(document.querySelectorAll('h2, h3, div')).find(x => x.textContent.includes("Top Clientes"));
-        if(headerTop) {
-            const container = headerTop.closest('div').parentElement;
-            if(container) {
-                container.querySelectorAll('div').forEach(row => {
-                   const items = row.querySelectorAll('span, div, p');
-                   let p = null, n = null;
-                   items.forEach(x => {
-                       if(x.textContent.includes('€')) p = x;
-                       else if(x.textContent.length > 2) n = x;
-                   });
-                   if(p && n) {
-                       if(!p.classList.contains('importe-top-ajustado')) p.classList.add('importe-top-ajustado');
-                       if(!n.classList.contains('top-client-name')) n.classList.add('top-client-name');
-                   }
-                });
-            }
-        }
-
-    }, 400); 
+    }, 500); // Revisión cada medio segundo
   </script>
 </body>
 </html>
