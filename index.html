@@ -10,34 +10,34 @@
   <title>Gestión de Ventas</title>
   
   <script type="module" crossorigin src="./index-NVVWiGcP.js"></script>
-  <link rel="stylesheet" href="./index-cqvvk0bb.css?v=final">
+  <link rel="stylesheet" crossorigin href="./index-cqvvk0bb.css">
   <link rel="manifest" href="./manifest.webmanifest">
 
   <style>
-    /* Fechas (DD-MM-AAAA) */
+    /* Fechas (DD-MM-AAAA) más grandes */
     .fecha-destacada {
-        font-size: 1.05rem !important;
-        font-weight: 600 !important;
+        font-size: 1.15rem !important;
+        font-weight: 700 !important;
         color: #1e293b !important;
     }
     
-    /* PRECIO TOP CLIENTES (Ajustado) */
-    .importe-top-ajustado {
-        font-size: 1.15rem !important;
-        font-weight: 700 !important;
+    /* Importe Top Clientes gigante */
+    .importe-gigante {
+        font-size: 1.4rem !important; 
+        font-weight: 800 !important;
         color: #2563eb !important;
     }
 
-    /* Contador Pedidos */
+    /* Contador de Pedidos debajo de cada comunidad */
     .contador-extra {
         display: block;
-        font-size: 0.85rem;
+        font-size: 0.9rem;
         color: #64748b;
         font-weight: 600;
-        margin-top: 4px;
+        margin-top: 5px;
         background-color: #f1f5f9;
         padding: 2px 8px;
-        border-radius: 8px;
+        border-radius: 12px;
         width: fit-content;
     }
   </style>
@@ -46,18 +46,18 @@
   <div id="root"></div>
 
   <script>
-    // 1. CONTAR PEDIDOS
+    // 1. LÓGICA PARA CONTAR PEDIDOS (IGUAL QUE ANTES)
     function contarPedidosPorZona() {
         try {
             const db = JSON.parse(localStorage.getItem('ventas-storage'));
             if (!db) return null;
             const anio = localStorage.getItem('selectedYear') || new Date().getFullYear().toString();
             const mapa = {};
-            if(db.clients) db.clients.forEach(c => { if(c.name && c.province) mapa[c.name.trim()] = c.province.toUpperCase().trim(); });
+            db.clients.forEach(c => { if(c.name && c.province) mapa[c.name.trim()] = c.province.toUpperCase().trim(); });
 
             const contadores = { 'ASTURIAS': 0, 'CANTABRIA': 0, 'LEON': 0, 'GALICIA': 0 };
 
-            if(db.orders) db.orders.forEach(p => {
+            db.orders.forEach(p => {
                 if (p.date && p.date.startsWith(anio)) {
                     const prov = mapa[p.clientName.trim()];
                     if (prov) {
@@ -72,20 +72,40 @@
         } catch (e) { return null; }
     }
 
-    // 2. EL VIGILANTE DE CAMBIOS
+    // 2. EL OBSERVADOR (Vigila y cambia textos)
     const observer = new MutationObserver(() => {
       
-      // A. TEXTOS
-      document.querySelectorAll('button, div, span, h1, h2, h3, p').forEach(el => {
+      // --- CORRECCIÓN FUERTE: CAMBIO DE TEXTOS ---
+      // Buscamos en TODOS los elementos de texto posibles
+      const elementosTexto = document.querySelectorAll('h1, h2, h3, h4, div, span, p, strong, b, li');
+      
+      elementosTexto.forEach(el => {
+          // Usamos trim() para ignorar espacios vacíos al principio o final
           const texto = el.textContent.trim();
-          if (el.children.length === 0) { 
-              if (texto === "Histórico Ventas") el.textContent = "Ventas medias mensuales";
-              if (texto === "Media mensual global") el.textContent = "Venta media anual";
-              if (texto === "Anual" && !el.closest('button')) el.textContent = "Ventas";
+
+          // CAMBIO: "Histórico Ventas" -> "Ventas medias mensuales"
+          if (texto === "Histórico Ventas") {
+              // Verificamos que sea el elemento final (que no tenga hijos HTML, solo texto)
+              if (el.children.length === 0) {
+                  el.textContent = "Ventas medias mensuales";
+              }
+          }
+
+          // CAMBIO: "Media mensual global" -> "Venta media anual"
+          if (texto === "Media mensual global") {
+              if (el.children.length === 0) {
+                  el.textContent = "Venta media anual";
+              }
+          }
+
+          // CAMBIO: "Anual" -> "Ventas" (Evitando romper botones u otras cosas)
+          if (texto === "Anual" && !el.closest('button')) {
+             if (el.children.length === 0) el.textContent = "Ventas";
           }
       });
 
-      // B. FECHAS
+
+      // --- FECHAS (DD-MM-AAAA) ---
       const regexFecha = /^(\d{4})-(\d{2})-(\d{2})$/;
       document.querySelectorAll('td, div, span, p').forEach(el => {
           const texto = el.textContent.trim();
@@ -95,31 +115,27 @@
           }
       });
 
-      // C. DASHBOARD TOP CLIENTES
-      const titulos = document.querySelectorAll('h2, h3, div');
+      // --- TOP CLIENTES (Importes y Botón) ---
+      const titulos = document.querySelectorAll('h2, h3');
       titulos.forEach(titulo => {
           if (titulo.textContent.includes("Top Clientes")) {
               const contenedor = titulo.closest('div').parentElement;
               if (contenedor) {
-                 // Botón Anual
-                 contenedor.querySelectorAll('*').forEach(el => {
-                     if (el.childNodes.length === 1 && (el.textContent.includes("Histórico") || el.textContent.includes("Historico"))) {
-                         el.textContent = el.textContent.replace(/Histórico|Historico/g, "Anual");
-                     }
+                 // Botón Histórico -> Anual
+                 contenedor.querySelectorAll('button').forEach(btn => {
+                     if (btn.textContent.trim().includes("Histórico")) btn.textContent = "Anual";
                  });
-                 // Precios ajustados
-                 contenedor.querySelectorAll('span, div, p').forEach(precio => {
-                     if (precio.textContent.includes('€') && precio.textContent.length < 20) {
-                         if (!precio.classList.contains('importe-top-ajustado')) {
-                             precio.classList.add('importe-top-ajustado');
-                         }
+                 // Importes Gigantes
+                 contenedor.querySelectorAll('span, div').forEach(imp => {
+                     if (imp.textContent.includes('€') && !imp.classList.contains('importe-gigante')) {
+                         imp.classList.add('importe-gigante');
                      }
                  });
               }
           }
       });
 
-      // D. CONTADOR COMUNIDADES
+      // --- CONTADOR DE PEDIDOS ---
       const tarjetas = document.querySelectorAll('div');
       const datos = contarPedidosPorZona();
       if (datos) {
@@ -128,6 +144,7 @@
              if (!titulo) return;
              const t = titulo.textContent.trim().toUpperCase();
              let cant = null;
+             
              if (t === 'ASTURIAS') cant = datos['ASTURIAS'];
              else if (t === 'CANTABRIA') cant = datos['CANTABRIA'];
              else if (t === 'LEÓN' || t === 'LEON') cant = datos['LEON'];
@@ -144,6 +161,7 @@
              }
           });
       }
+
     });
 
     observer.observe(document.body, { childList: true, subtree: true });
