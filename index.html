@@ -1,134 +1,104 @@
 <!doctype html>
 <html lang="es">
-
 <head>
   <meta charset="UTF-8" />
-  <link rel="icon" type="image/svg+xml" href="./logo_MyL.png" />
+  <link rel="icon" type="image/svg+xml" href="./logo_myl.png" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Ventas M&L" />
   <title>Gestión de Ventas</title>
-
+  
   <script type="module" crossorigin src="./index-NVVWiGcP.js"></script>
-
   <link rel="stylesheet" crossorigin href="./index-cqvvk0bb.css">
-
   <link rel="manifest" href="./manifest.webmanifest">
-  <script id="vite-plugin-pwa:register-sw" src="./borrar_registerSW.js"></script>
-</head>
 
+  <style>
+    /* MEJORA 3: Fechas más grandes */
+    .fecha-destacada {
+        font-size: 1.1rem !important;
+        font-weight: bold !important;
+        color: #333;
+    }
+    /* MEJORA 4: Importe Top Clientes más grande */
+    .importe-gigante {
+        font-size: 1.3rem !important; 
+        font-weight: 800 !important;
+        color: #2563eb; /* Azul corporativo */
+    }
+  </style>
+</head>
 <body>
   <div id="root"></div>
 
   <script>
-    (function () {
-      try {
-        localStorage.setItem('selectedYear', '2026');
-        const dataKey = 'ventas-storage';
-        const rawData = localStorage.getItem(dataKey);
-        if (rawData) {
-          let data = JSON.parse(rawData);
-          if (data.years && Array.isArray(data.years)) {
-            if (!data.years.includes(2026)) {
-              data.years.push(2026);
-              data.years.sort((a, b) => b - a);
-              localStorage.setItem(dataKey, JSON.stringify(data));
-            }
+    // Este "vigilante" observa la pantalla y cambia los textos al vuelo
+    const observer = new MutationObserver((mutations) => {
+      
+      // 1. CAMBIAR "ANUAL" POR "VENTAS"
+      // Buscamos títulos h1, h2 o divs que contengan exactamente "Anual"
+      document.querySelectorAll('h1, h2, h3, div').forEach(el => {
+          // Cuidado de no cambiar "Top Clientes Anual" (Punto 4)
+          if (el.textContent.trim() === "Anual") {
+              el.textContent = "Ventas";
           }
-        }
-        console.log("Sistema de persistencia M&L 2026 activado.");
-      } catch (e) {
-        console.error("Error en el parche:", e);
-      }
-    })();
-  </script>
-  <script>
-    // --- SISTEMA DE RESPALDO AUTOMÁTICO (Auto-Backup) ---
-    (function () {
-      const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyVYxW9uXRPIANntN4rwZ4mmEEEnEwVMEJ6g1oIpm93Fn4Q6iAy9vuGEpBD0g3AWcCT/exec";
-      const BACKUP_HOUR = 21; // 21:00 (9 PM)
+      });
 
-      function log(msg) { console.log("[AutoBackup] " + msg); }
-
-      async function performBackup() {
-        try {
-          log("Iniciando proceso de copia de seguridad...");
-          const rawData = localStorage.getItem('ventas-storage');
-          if (!rawData) {
-            log("No hay datos en ventas-storage para respaldar.");
-            return;
+      // 2. CAMBIAR TEXTOS DE HISTÓRICO
+      document.querySelectorAll('*').forEach(el => {
+          // Cambiar título principal
+          if (el.childNodes.length === 1 && el.textContent.trim() === "Histórico Ventas") {
+              el.textContent = "Ventas medias mensuales";
           }
-
-          const now = new Date();
-          const filename = `backup_${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}.json`;
-
-          const payload = {
-            action: 'uploadBackup',
-            file: rawData,
-            filename: filename,
-            mimetype: 'application/json'
-          };
-
-          const response = await fetch(SCRIPT_URL, {
-            method: 'POST',
-            body: JSON.stringify(payload)
-          });
-
-          const result = await response.json();
-
-          if (result.success || result.result === 'success') {
-            log("Copia guardada con éxito: " + filename);
-            const todayStr = new Date().toISOString().split('T')[0];
-            localStorage.setItem('backup_last_run', todayStr);
-          } else {
-            log("Error en la respuesta del servidor: " + JSON.stringify(result));
+          // Cambiar subtítulo inferior
+          if (el.childNodes.length === 1 && el.textContent.trim() === "Media mensual global") {
+              el.textContent = "Venta media anual";
           }
-        } catch (e) {
-          log("Error crítico al intentar la copia: " + e.message);
-        }
-      }
+      });
 
-      function checkBackupSchedule() {
-        const now = new Date();
-        const currentHour = now.getHours();
+      // 3. CAMBIAR FECHAS A DD-MM-AAAA
+      // Buscamos celdas o textos que tengan formato AAAA-MM-DD (Ej: 2026-01-09)
+      const regexFecha = /^(\d{4})-(\d{2})-(\d{2})$/;
+      document.querySelectorAll('td, div, span, p').forEach(el => {
+          const texto = el.textContent.trim();
+          if (regexFecha.test(texto)) {
+              // Le damos la vuelta a la fecha
+              el.textContent = texto.replace(regexFecha, '$3-$2-$1');
+              // Le añadimos la clase para que se vea grande (CSS de arriba)
+              el.classList.add('fecha-destacada');
+          }
+      });
 
-        // Si es antes de las 21:00, no hacer nada
-        if (currentHour < BACKUP_HOUR) return;
+      // 4. TOP CLIENTES (Texto e Importes)
+      // Buscamos la sección de Top Clientes
+      const titulosSeccion = document.querySelectorAll('h2, h3, div');
+      titulosSeccion.forEach(titulo => {
+          if (titulo.textContent.includes("Top Clientes")) {
+              // A. Cambiar "Histórico" por "Anual" en esta zona
+              const contenedorPadre = titulo.closest('div').parentElement; // Subimos para buscar botones cerca
+              if (contenedorPadre) {
+                 contenedorPadre.querySelectorAll('button, div').forEach(btn => {
+                     if (btn.textContent.trim() === "Histórico") {
+                         btn.textContent = "Anual";
+                     }
+                 });
+                 
+                 // B. Poner importes más grandes
+                 // Buscamos los precios (contienen € y comas/puntos) dentro de esta sección
+                 const importes = contenedorPadre.querySelectorAll('span, div');
+                 importes.forEach(imp => {
+                     if (imp.textContent.includes('€') && !imp.classList.contains('importe-gigante')) {
+                         imp.classList.add('importe-gigante');
+                     }
+                 });
+              }
+          }
+      });
 
-        // Verificar si es fin de semana (0=Domingo, 6=Sábado)
-        const currentDay = now.getDay();
-        if (currentDay === 0 || currentDay === 6) {
-          // log("Es fin de semana. No se hace backup.");
-          return;
-        }
+    });
 
-        const lastRun = localStorage.getItem('backup_last_run');
-        const todayStr = now.toISOString().split('T')[0];
-
-        // Si ya se hizo hoy, no hacer nada
-        if (lastRun === todayStr) {
-          // log("Copia de hoy ya realizada.");
-          return;
-        }
-
-        // Si es hora (>= 21:00) y no se ha hecho hoy -> EJECUTAR
-        log("Son pasadas las " + BACKUP_HOUR + ":00 y no hay copia de hoy. Ejecutando...");
-        performBackup();
-      }
-
-      // Exponer función manual para pruebas
-      window.triggerBackup = performBackup;
-
-      // Verificar al inicio
-      setTimeout(checkBackupSchedule, 5000); // Esperar 5s a que cargue todo
-
-      // Verificar cada 5 minutos
-      setInterval(checkBackupSchedule, 5 * 60 * 1000);
-
-      log("Sistema activo. Hora programada: " + BACKUP_HOUR + ":00");
-    })();
+    // Iniciar el vigilante
+    observer.observe(document.body, { childList: true, subtree: true });
   </script>
 </body>
-
 </html>
