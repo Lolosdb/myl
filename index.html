@@ -8,36 +8,63 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Ventas M&L" />
   <title>Gestión de Ventas</title>
-  
+   
   <script type="module" crossorigin src="./index-NVVWiGcP.js"></script>
   <link rel="stylesheet" href="./index-cqvvk0bb.css?v=final">
   <link rel="manifest" href="./manifest.webmanifest">
 
   <style>
-    /* Fechas (DD-MM-AAAA) */
+    /* --- ESTILOS PERSONALIZADOS --- */
+
+    /* 1. Fechas (DD-MM-AAAA) */
     .fecha-destacada {
         font-size: 1.05rem !important;
         font-weight: 600 !important;
         color: #1e293b !important;
     }
     
-    /* PRECIO TOP CLIENTES (Ajustado) */
+    /* 2. TOP CLIENTES: Estilos */
+    /* Nombre del cliente (Más grande) */
+    .top-client-name {
+        font-size: 1rem !important; 
+        font-weight: 700 !important;
+        color: #0f172a !important;
+        display: block;
+        line-height: 1.2;
+        margin-bottom: 2px;
+    }
+
+    /* Precio (Más pequeño y negrita) */
     .importe-top-ajustado {
-        font-size: 1.15rem !important;
+        font-size: 0.9rem !important; /* Más pequeño que el nombre */
+        font-weight: 700 !important;
+        color: #2563eb !important; /* Azul */
+        display: block;
+    }
+
+    /* 3. COMUNIDADES: Estilos */
+    /* Precio movido hacia arriba */
+    .community-price-moved {
+        font-size: 1.2rem !important;
         font-weight: 700 !important;
         color: #2563eb !important;
+        margin-top: 4px !important;
+        margin-bottom: 4px !important;
+        display: block !important;
     }
 
     /* Contador Pedidos */
     .contador-extra {
-        display: block;
+        display: flex;
+        align-items: center;
+        gap: 5px;
         font-size: 0.85rem;
-        color: #64748b;
+        color: #475569; /* Gris oscuro */
         font-weight: 600;
-        margin-top: 4px;
+        margin-top: 2px;
         background-color: #f1f5f9;
-        padding: 2px 8px;
-        border-radius: 8px;
+        padding: 4px 10px;
+        border-radius: 6px;
         width: fit-content;
     }
   </style>
@@ -46,7 +73,9 @@
   <div id="root"></div>
 
   <script>
-    // 1. CONTAR PEDIDOS
+    // ------------------------------------------------
+    // 1. LÓGICA DE CONTEO (Sin cambios, funciona bien)
+    // ------------------------------------------------
     function contarPedidosPorZona() {
         try {
             const db = JSON.parse(localStorage.getItem('ventas-storage'));
@@ -72,20 +101,32 @@
         } catch (e) { return null; }
     }
 
-    // 2. EL VIGILANTE DE CAMBIOS
+    // ------------------------------------------------
+    // 2. EL VIGILANTE DE CAMBIOS (DOM MANIPULATION)
+    // ------------------------------------------------
     const observer = new MutationObserver(() => {
-      
-      // A. TEXTOS
+       
+      // --- A. TEXTOS GENERALES Y BOTÓN ANUAL ---
       document.querySelectorAll('button, div, span, h1, h2, h3, p').forEach(el => {
-          const texto = el.textContent.trim();
-          if (el.children.length === 0) { 
+          // Solo procesar si tiene texto directo (sin hijos complejos)
+          if (el.children.length === 0 && el.textContent) { 
+              const texto = el.textContent.trim();
+              
               if (texto === "Histórico Ventas") el.textContent = "Ventas medias mensuales";
               if (texto === "Media mensual global") el.textContent = "Venta media anual";
-              if (texto === "Anual" && !el.closest('button')) el.textContent = "Ventas";
+              
+              // Cambiar "Histórico" a "ANUAL" (Específico para el botón)
+              if ((texto === "Histórico" || texto === "Historico") && el.closest('button')) {
+                  el.textContent = "ANUAL";
+                  // Asegurar que no tenga borde rojo si lo tuviera por CSS externo
+                  el.closest('button').style.border = "1px solid #e2e8f0";
+              }
+              // Corrección para otros textos que digan Anual
+              else if (texto === "Anual" && !el.closest('button')) el.textContent = "Ventas";
           }
       });
 
-      // B. FECHAS
+      // --- B. FECHAS (YYYY-MM-DD -> DD-MM-YYYY) ---
       const regexFecha = /^(\d{4})-(\d{2})-(\d{2})$/;
       document.querySelectorAll('td, div, span, p').forEach(el => {
           const texto = el.textContent.trim();
@@ -95,50 +136,72 @@
           }
       });
 
-      // C. DASHBOARD TOP CLIENTES
-      const titulos = document.querySelectorAll('h2, h3, div');
-      titulos.forEach(titulo => {
-          if (titulo.textContent.includes("Top Clientes")) {
-              const contenedor = titulo.closest('div').parentElement;
-              if (contenedor) {
-                 // Botón Anual
-                 contenedor.querySelectorAll('*').forEach(el => {
-                     if (el.childNodes.length === 1 && (el.textContent.includes("Histórico") || el.textContent.includes("Historico"))) {
-                         el.textContent = el.textContent.replace(/Histórico|Historico/g, "Anual");
-                     }
-                 });
-                 // Precios ajustados
-                 contenedor.querySelectorAll('span, div, p').forEach(precio => {
-                     if (precio.textContent.includes('€') && precio.textContent.length < 20) {
-                         if (!precio.classList.contains('importe-top-ajustado')) {
-                             precio.classList.add('importe-top-ajustado');
-                         }
-                     }
-                 });
-              }
-          }
-      });
+      // --- C. DASHBOARD: TOP CLIENTES (Nombre Grande / Precio Pequeño) ---
+      const seccionTop = Array.from(document.querySelectorAll('h2, h3, div')).find(el => el.textContent.includes("Top Clientes"));
+      if (seccionTop) {
+          const contenedorPadre = seccionTop.closest('div').parentElement;
+          if (contenedorPadre) {
+              // Buscar las filas de clientes. Tienen nombre y precio.
+              const filas = contenedorPadre.querySelectorAll('div'); 
+              filas.forEach(fila => {
+                  const textos = fila.querySelectorAll('span, div, p');
+                  // Buscamos el precio (tiene €) y asumimos que el otro es el nombre
+                  let precioEl = null;
+                  let nombreEl = null;
 
-      // D. CONTADOR COMUNIDADES
-      const tarjetas = document.querySelectorAll('div');
+                  textos.forEach(t => {
+                      if (t.textContent.includes('€')) precioEl = t;
+                      else if (t.textContent.length > 2 && !t.querySelector('*')) nombreEl = t; // Candidato a nombre
+                  });
+
+                  if (precioEl && nombreEl) {
+                      // Aplicar estilos
+                      if (!precioEl.classList.contains('importe-top-ajustado')) {
+                          precioEl.classList.add('importe-top-ajustado');
+                      }
+                      if (!nombreEl.classList.contains('top-client-name')) {
+                          nombreEl.classList.add('top-client-name');
+                      }
+                  }
+              });
+          }
+      }
+
+      // --- D. DASHBOARD: COMUNIDADES (Reorganización: Título -> Precio -> Pedidos) ---
       const datos = contarPedidosPorZona();
       if (datos) {
-          tarjetas.forEach(el => {
-             const titulo = el.querySelector('h3, span, div'); 
+          // Buscamos las tarjetas por el nombre de la comunidad
+          document.querySelectorAll('div').forEach(card => {
+             // Buscar título dentro de la tarjeta
+             const titulo = card.querySelector('h3, span, div'); 
              if (!titulo) return;
-             const t = titulo.textContent.trim().toUpperCase();
-             let cant = null;
-             if (t === 'ASTURIAS') cant = datos['ASTURIAS'];
-             else if (t === 'CANTABRIA') cant = datos['CANTABRIA'];
-             else if (t === 'LEÓN' || t === 'LEON') cant = datos['LEON'];
-             else if (t === 'GALICIA') cant = datos['GALICIA'];
+             
+             const nombreZona = titulo.textContent.trim().toUpperCase();
+             let cantidad = null;
 
-             if (cant !== null && !el.querySelector('.contador-extra')) {
-                 const precio = Array.from(el.querySelectorAll('div, span')).find(x => x.textContent.includes('€'));
-                 if (precio) {
+             // Mapear nombre a cantidad
+             if (nombreZona === 'ASTURIAS') cantidad = datos['ASTURIAS'];
+             else if (nombreZona === 'CANTABRIA') cantidad = datos['CANTABRIA'];
+             else if (nombreZona === 'LEÓN' || nombreZona === 'LEON') cantidad = datos['LEON'];
+             else if (nombreZona === 'GALICIA') cantidad = datos['GALICIA'];
+
+             // Si encontramos una zona válida
+             if (cantidad !== null) {
+                 // 1. Buscar el precio dentro de esta tarjeta
+                 const precio = Array.from(card.querySelectorAll('div, span')).find(x => x.textContent.includes('€'));
+                 
+                 // 2. MOVER EL PRECIO (Si existe y no está ya movido)
+                 if (precio && titulo.nextElementSibling !== precio) {
+                     // Insertar el precio justo después del título
+                     titulo.after(precio);
+                     precio.classList.add('community-price-moved');
+                 }
+
+                 // 3. AGREGAR CONTADOR (Debajo del precio)
+                 if (precio && !card.querySelector('.contador-extra')) {
                      const nuevoDiv = document.createElement('div');
                      nuevoDiv.className = 'contador-extra';
-                     nuevoDiv.textContent = cant + " Pedidos";
+                     nuevoDiv.innerHTML = `📦 ${cantidad} Pedidos`; // Añadido icono
                      precio.after(nuevoDiv);
                  }
              }
