@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <link rel="icon" type="image/svg+xml" href="./logo_myl.png" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Ventas M&L" />
   <title>Gestión de Ventas</title>
@@ -14,17 +14,31 @@
   <link rel="manifest" href="./manifest.webmanifest">
 
   <style>
-    /* MEJORA 3: Fechas más grandes */
+    /* 3. Fechas en ficha de cliente (DD-MM-AAAA) más grandes */
     .fecha-destacada {
-        font-size: 1.1rem !important;
-        font-weight: bold !important;
-        color: #333;
+        font-size: 1.15rem !important;
+        font-weight: 700 !important;
+        color: #1e293b !important;
     }
-    /* MEJORA 4: Importe Top Clientes más grande */
+    
+    /* 4. Importe Top Clientes gigante y azul */
     .importe-gigante {
-        font-size: 1.3rem !important; 
+        font-size: 1.4rem !important; 
         font-weight: 800 !important;
-        color: #2563eb; /* Azul corporativo */
+        color: #2563eb !important; /* Azul corporativo */
+    }
+
+    /* 5. Contador de Pedidos debajo de cada comunidad */
+    .contador-extra {
+        display: block;
+        font-size: 0.9rem;
+        color: #64748b; /* Gris elegante */
+        font-weight: 600;
+        margin-top: 5px;
+        background-color: #f1f5f9;
+        padding: 2px 8px;
+        border-radius: 12px;
+        width: fit-content;
     }
   </style>
 </head>
@@ -32,60 +46,98 @@
   <div id="root"></div>
 
   <script>
-    // Este "vigilante" observa la pantalla y cambia los textos al vuelo
+    // --- LÓGICA MATEMÁTICA (Para contar los pedidos) ---
+    function contarPedidosPorZona() {
+        try {
+            const db = JSON.parse(localStorage.getItem('ventas-storage'));
+            if (!db) return null;
+
+            const anioSeleccionado = localStorage.getItem('selectedYear') || new Date().getFullYear().toString();
+            
+            // 1. Crear mapa de Clientes -> Provincia
+            const mapaClientes = {};
+            db.clients.forEach(c => {
+                if(c.name && c.province) {
+                    mapaClientes[c.name.trim()] = c.province.toUpperCase().trim();
+                }
+            });
+
+            // 2. Inicializar contadores
+            const contadores = {
+                'ASTURIAS': 0,
+                'CANTABRIA': 0,
+                'LEON': 0,
+                'GALICIA': 0
+            };
+
+            // 3. Recorrer pedidos y sumar según provincia
+            db.orders.forEach(pedido => {
+                // Solo contamos pedidos del año seleccionado
+                if (pedido.date && pedido.date.startsWith(anioSeleccionado)) {
+                    const nombreCliente = pedido.clientName.trim();
+                    const provincia = mapaClientes[nombreCliente];
+
+                    if (provincia) {
+                        if (provincia === 'ASTURIAS') contadores['ASTURIAS']++;
+                        else if (provincia === 'CANTABRIA') contadores['CANTABRIA']++;
+                        else if (provincia === 'LEON') contadores['LEON']++;
+                        else if (['LUGO', 'ORENSE', 'PONTEVEDRA', 'CORUÑA', 'A CORUÑA'].includes(provincia)) {
+                            contadores['GALICIA']++;
+                        }
+                    }
+                }
+            });
+            return contadores;
+
+        } catch (e) {
+            console.error("Error contando pedidos", e);
+            return null;
+        }
+    }
+
+    // --- EL VIGILANTE (Aplica los cambios visuales) ---
     const observer = new MutationObserver((mutations) => {
       
-      // 1. CAMBIAR "ANUAL" POR "VENTAS"
-      // Buscamos títulos h1, h2 o divs que contengan exactamente "Anual"
-      document.querySelectorAll('h1, h2, h3, div').forEach(el => {
-          // Cuidado de no cambiar "Top Clientes Anual" (Punto 4)
-          if (el.textContent.trim() === "Anual") {
+      // A. CAMBIOS DE TEXTO GENERALES (Puntos 1 y 2)
+      document.querySelectorAll('h1, h2, h3, div, span').forEach(el => {
+          // Cambio 1: Anual -> Ventas (Con cuidado de no romper Top Clientes)
+          if (el.textContent.trim() === "Anual" && !el.closest('button')) {
               el.textContent = "Ventas";
           }
-      });
-
-      // 2. CAMBIAR TEXTOS DE HISTÓRICO
-      document.querySelectorAll('*').forEach(el => {
-          // Cambiar título principal
+          // Cambio 2: Histórico Ventas -> Ventas medias mensuales
           if (el.childNodes.length === 1 && el.textContent.trim() === "Histórico Ventas") {
               el.textContent = "Ventas medias mensuales";
           }
-          // Cambiar subtítulo inferior
           if (el.childNodes.length === 1 && el.textContent.trim() === "Media mensual global") {
               el.textContent = "Venta media anual";
           }
       });
 
-      // 3. CAMBIAR FECHAS A DD-MM-AAAA
-      // Buscamos celdas o textos que tengan formato AAAA-MM-DD (Ej: 2026-01-09)
+      // B. FECHAS (Punto 3)
+      // Busca formato YYYY-MM-DD y lo cambia a DD-MM-YYYY
       const regexFecha = /^(\d{4})-(\d{2})-(\d{2})$/;
       document.querySelectorAll('td, div, span, p').forEach(el => {
           const texto = el.textContent.trim();
           if (regexFecha.test(texto)) {
-              // Le damos la vuelta a la fecha
               el.textContent = texto.replace(regexFecha, '$3-$2-$1');
-              // Le añadimos la clase para que se vea grande (CSS de arriba)
               el.classList.add('fecha-destacada');
           }
       });
 
-      // 4. TOP CLIENTES (Texto e Importes)
-      // Buscamos la sección de Top Clientes
-      const titulosSeccion = document.querySelectorAll('h2, h3, div');
-      titulosSeccion.forEach(titulo => {
+      // C. TOP CLIENTES (Punto 4)
+      const titulos = document.querySelectorAll('h2, h3');
+      titulos.forEach(titulo => {
           if (titulo.textContent.includes("Top Clientes")) {
-              // A. Cambiar "Histórico" por "Anual" en esta zona
-              const contenedorPadre = titulo.closest('div').parentElement; // Subimos para buscar botones cerca
-              if (contenedorPadre) {
-                 contenedorPadre.querySelectorAll('button, div').forEach(btn => {
-                     if (btn.textContent.trim() === "Histórico") {
+              const contenedor = titulo.closest('div').parentElement;
+              if (contenedor) {
+                 // Botón Histórico -> Anual
+                 contenedor.querySelectorAll('button').forEach(btn => {
+                     if (btn.textContent.trim() === "Histórico" || btn.textContent.trim() === "Historico") {
                          btn.textContent = "Anual";
                      }
                  });
-                 
-                 // B. Poner importes más grandes
-                 // Buscamos los precios (contienen € y comas/puntos) dentro de esta sección
-                 const importes = contenedorPadre.querySelectorAll('span, div');
+                 // Importes Gigantes
+                 const importes = contenedor.querySelectorAll('span, div');
                  importes.forEach(imp => {
                      if (imp.textContent.includes('€') && !imp.classList.contains('importe-gigante')) {
                          imp.classList.add('importe-gigante');
@@ -95,9 +147,40 @@
           }
       });
 
+      // D. CONTADOR DE PEDIDOS EN TOTALES (Punto 5)
+      // Buscamos las tarjetas de las comunidades
+      const tarjetas = document.querySelectorAll('div');
+      const datosPedidos = contarPedidosPorZona(); // Calculamos los datos
+
+      if (datosPedidos) {
+          tarjetas.forEach(el => {
+             // Identificamos las cajas por su título
+             const titulo = el.querySelector('h3, span, div'); 
+             if (!titulo) return;
+             const textoTitulo = titulo.textContent.trim().toUpperCase();
+
+             let cantidad = null;
+             if (textoTitulo === 'ASTURIAS') cantidad = datosPedidos['ASTURIAS'];
+             else if (textoTitulo === 'CANTABRIA') cantidad = datosPedidos['CANTABRIA'];
+             else if (textoTitulo === 'LEÓN' || textoTitulo === 'LEON') cantidad = datosPedidos['LEON'];
+             else if (textoTitulo === 'GALICIA') cantidad = datosPedidos['GALICIA'];
+
+             // Si encontramos coincidencia y no hemos puesto ya el contador...
+             if (cantidad !== null && !el.querySelector('.contador-extra')) {
+                 // Buscamos donde está el precio total para ponerlo debajo
+                 const precio = Array.from(el.querySelectorAll('div, span')).find(x => x.textContent.includes('€'));
+                 if (precio) {
+                     const nuevoDiv = document.createElement('div');
+                     nuevoDiv.className = 'contador-extra';
+                     nuevoDiv.textContent = cantidad + " Pedidos";
+                     precio.after(nuevoDiv);
+                 }
+             }
+          });
+      }
+
     });
 
-    // Iniciar el vigilante
     observer.observe(document.body, { childList: true, subtree: true });
   </script>
 </body>
