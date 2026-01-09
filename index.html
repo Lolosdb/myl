@@ -12,28 +12,31 @@
   <link rel="manifest" href="./manifest.webmanifest">
 
   <style>
-    /* --- ESTILOS AUXILIARES (Solo inyectados donde hace falta) --- */
+    /* --- ESTILOS QUIRÚRGICOS --- */
 
-    /* 1. Contador de pedidos en tarjetas */
+    /* 1. Contador de pedidos (Limpio y profesional) */
     .contador-pedidos-extra {
         display: block;
-        margin-top: 5px;
-        padding-top: 5px;
-        border-top: 1px solid #e2e8f0;
+        margin-top: 6px;
+        padding-top: 6px;
+        border-top: 1px dashed #cbd5e1;
         color: #475569; 
         font-size: 0.85rem;
         font-weight: 700;
+        display: flex;
+        align-items: center;
+        gap: 5px;
     }
 
-    /* 2. Euro Grande en el menú de abajo */
-    .euro-fix-menu {
+    /* 2. Arreglo Símbolo Euro en Menú */
+    .euro-menu-fix {
         font-size: 24px !important;
         display: inline-block;
         line-height: 1;
-        margin-bottom: 2px;
+        transform: translateY(1px);
     }
 
-    /* 3. Textos fijos (Anual) */
+    /* 3. Textos Fijos */
     .texto-anual {
         text-transform: uppercase !important;
         font-weight: 700 !important;
@@ -52,7 +55,7 @@
 
   <script>
     // ==========================================
-    // 1. CÁLCULO DE PEDIDOS (Lógica Robusta)
+    // 1. CÁLCULO DE PEDIDOS (Lógica Reforzada)
     // ==========================================
     function contarPedidos() {
         const resultado = { 'ASTURIAS': 0, 'CANTABRIA': 0, 'LEON': 0, 'GALICIA': 0 };
@@ -65,21 +68,44 @@
 
             const anio = localStorage.getItem('selectedYear') || new Date().getFullYear().toString();
             
+            // --- MAPEO DE CLIENTES (Nombre y Código) ---
             const mapaClientes = {};
             if(db.clients) {
                 db.clients.forEach(c => {
-                    const rawName = c.name || c.nombre || c.razonSocial;
-                    const rawProv = c.province || c.provincia || c.Provincia || c.region;
-                    if(rawName && rawProv) {
-                        mapaClientes[rawName.trim().toUpperCase()] = rawProv.trim().toUpperCase();
+                    // Datos del cliente
+                    const prov = c.province || c.provincia || c.Provincia || c.region;
+                    
+                    if (prov) {
+                        const provinciaNorm = prov.trim().toUpperCase();
+                        
+                        // Mapeamos por NOMBRE
+                        if (c.name) mapaClientes[c.name.trim().toUpperCase()] = provinciaNorm;
+                        if (c.nombre) mapaClientes[c.nombre.trim().toUpperCase()] = provinciaNorm;
+                        if (c.razonSocial) mapaClientes[c.razonSocial.trim().toUpperCase()] = provinciaNorm;
+                        
+                        // Mapeamos por CÓDIGO (Clave para que funcione si usan IDs)
+                        if (c.code) mapaClientes[String(c.code).trim()] = provinciaNorm;
+                        if (c.id) mapaClientes[String(c.id).trim()] = provinciaNorm;
+                        if (c.codigo) mapaClientes[String(c.codigo).trim()] = provinciaNorm;
                     }
                 });
             }
 
+            // --- CONTEO ---
             db.orders.forEach(o => {
+                // Verificamos fecha (flexible por si acaso)
                 if (o.date && String(o.date).startsWith(anio)) {
-                    const nombreCliente = o.clientName ? o.clientName.trim().toUpperCase() : '';
-                    const prov = mapaClientes[nombreCliente];
+                    
+                    // Intentamos encontrar la provincia usando Nombre O Código
+                    let prov = null;
+                    
+                    // Intento 1: Por nombre
+                    if (o.clientName) prov = mapaClientes[o.clientName.trim().toUpperCase()];
+                    
+                    // Intento 2: Por código/ID (si falla el nombre)
+                    if (!prov && o.clientId) prov = mapaClientes[String(o.clientId).trim()];
+                    if (!prov && o.clientCode) prov = mapaClientes[String(o.clientCode).trim()];
+
                     if (prov) {
                         if (prov.includes('ASTURIAS')) resultado['ASTURIAS']++;
                         else if (prov.includes('CANTABRIA')) resultado['CANTABRIA']++;
@@ -88,82 +114,93 @@
                     }
                 }
             });
-        } catch(e) { console.error(e); }
+        } catch(e) { console.error("Error contadores:", e); }
         return resultado;
     }
 
     // ==========================================
-    // 2. EL ARREGLADOR VISUAL
+    // 2. EL ARREGLADOR VISUAL (Intervalo)
     // ==========================================
     setInterval(() => {
         
-        // --- A. ARREGLO MENÚ INFERIOR (CON PROTECCIÓN) ---
-        const etiquetasMenu = ["Totales", "Factura", "Dash", "Pedidos", "Clientes", "Alertas", "Objetivos", "Mapa"];
-        
-        etiquetasMenu.forEach(label => {
-            // Buscamos elementos que contengan la palabra (ej: "Dash")
-            const elementosTexto = Array.from(document.querySelectorAll('span, div, p, a')).filter(el => el.textContent.trim() === label);
-            
-            elementosTexto.forEach(textoEl => {
-                const boton = textoEl.closest('a') || textoEl.closest('[role="button"]') || textoEl.parentElement;
+        // --- A. MENÚ INFERIOR (ESTRATEGIA SEGURA) ---
+        // 1. Buscamos el texto "Dash"
+        const dashSpans = Array.from(document.querySelectorAll('span, p, div')).filter(e => e.textContent.trim() === 'Dash');
+        let barraMenu = null;
+
+        // 2. Identificamos cuál es el del menú de abajo (por posición)
+        for (const span of dashSpans) {
+            const rect = span.getBoundingClientRect();
+            // Si está en los últimos 100px de la pantalla, ES EL MENÚ
+            if (rect.top > window.innerHeight - 100) {
+                // Buscamos el contenedor padre (la barra entera)
+                // Subimos 2 o 3 niveles hasta encontrar el contenedor flex
+                let candidato = span.parentElement; 
+                for(let k=0; k<3; k++) {
+                    if (candidato && candidate.parentElement) {
+                        // Si el padre tiene varios hijos (botones), es la barra
+                        if (candidato.parentElement.children.length > 4) {
+                            barraMenu = candidate.parentElement;
+                            break;
+                        }
+                    }
+                    candidato = candidate.parentElement;
+                }
+            }
+            if (barraMenu) break;
+        }
+
+        // 3. Si encontramos la barra, aplicamos estilos SOLO A SUS HIJOS
+        if (barraMenu) {
+            Array.from(barraMenu.children).forEach(boton => {
+                // Limpieza base
+                boton.style.backgroundColor = 'transparent';
+                boton.style.boxShadow = 'none';
+                boton.style.border = 'none';
                 
-                if (boton) {
-                    // --- EL CANDADO DE SEGURIDAD (SENSOR DE POSICIÓN) ---
-                    const rect = boton.getBoundingClientRect();
-                    const alturaPantalla = window.innerHeight;
-                    
-                    // Si el elemento NO está en los últimos 100px de la pantalla (el pie), LO IGNORAMOS.
-                    // Esto evita que pinte de blanco el logo de arriba o la tarjeta de en medio.
-                    if (rect.top < (alturaPantalla - 100)) {
-                        return; // ¡No tocar! No es el menú de abajo.
+                // Color blanco a textos e iconos
+                const hijos = boton.querySelectorAll('*');
+                hijos.forEach(hijo => {
+                    // Texto blanco
+                    if(hijo.tagName !== 'SVG' && hijo.tagName !== 'IMG') {
+                        hijo.style.color = '#ffffff';
                     }
-                    // -----------------------------------------------------
-
-                    // Aplicar limpieza SOLO al menú de abajo
-                    boton.style.backgroundColor = 'transparent';
-                    boton.style.boxShadow = 'none';
-                    boton.style.border = 'none';
-                    
-                    const hijos = boton.querySelectorAll('*');
-                    hijos.forEach(hijo => {
-                        if(hijo.tagName !== 'SVG' && hijo.tagName !== 'IMG') {
-                            hijo.style.color = '#ffffff';
-                        }
-                        // Símbolo Euro
-                        if (label === "Totales" && hijo.textContent.includes('€')) {
-                            if (!hijo.classList.contains('euro-fix-menu')) hijo.classList.add('euro-fix-menu');
-                        }
-                    });
-
-                    // Filtro blanco para iconos
-                    const iconos = boton.querySelectorAll('svg, img');
-                    iconos.forEach(ico => ico.style.filter = 'brightness(0) invert(1)');
-
-                    // Indicador activo
-                    const estiloComp = window.getComputedStyle(boton);
-                    if (location.pathname.includes(label.toLowerCase()) || boton.className.includes('active') || estiloComp.backgroundColor.includes('235')) {
-                        boton.style.borderBottom = '3px solid white';
-                        boton.style.paddingBottom = '4px';
-                    } else {
-                        boton.style.borderBottom = 'none';
+                    // Arreglo especial Euro
+                    if (hijo.textContent.includes('€') && !hijo.classList.contains('euro-menu-fix')) {
+                        hijo.classList.add('euro-menu-fix');
                     }
+                });
+
+                // Iconos SVG -> Blanco
+                const iconos = boton.querySelectorAll('svg, img');
+                iconos.forEach(ico => ico.style.filter = 'brightness(0) invert(1)');
+
+                // Borde activo (si tiene fondo azul o clase active)
+                const estilo = window.getComputedStyle(boton);
+                if (boton.className.includes('active') || estilo.backgroundColor.includes('235') || location.href.includes(boton.textContent.trim().toLowerCase())) {
+                    boton.style.borderBottom = '3px solid white';
+                    boton.style.paddingBottom = '4px';
+                } else {
+                    boton.style.borderBottom = 'none';
                 }
             });
-        });
+        }
 
-        // --- B. CONTADORES DE PEDIDOS (Tarjetas) ---
+        // --- B. CONTADORES DE PEDIDOS ---
         const contadores = contarPedidos();
         const zonas = ['ASTURIAS', 'CANTABRIA', 'LEON', 'LEÓN', 'GALICIA'];
 
         document.querySelectorAll('h3, span, div, p').forEach(el => {
             const texto = el.textContent.trim().toUpperCase();
             if (zonas.includes(texto)) {
+                // Buscar tarjeta padre
                 let tarjeta = el.parentElement;
                 let encontrada = false;
                 for(let i=0; i<5; i++) {
                     if(!tarjeta) break;
-                    const estilo = window.getComputedStyle(tarjeta);
-                    if (estilo.backgroundColor.includes('255, 255, 255') || estilo.boxShadow !== 'none') {
+                    const s = window.getComputedStyle(tarjeta);
+                    // Detectar tarjeta blanca
+                    if (s.backgroundColor.includes('255, 255, 255') || s.boxShadow !== 'none') {
                         encontrada = true;
                         break;
                     }
@@ -172,31 +209,33 @@
 
                 if (encontrada && tarjeta) {
                     const key = (texto === 'LEÓN') ? 'LEON' : texto;
-                    const numPedidos = contadores[key];
+                    const num = contadores[key];
 
+                    // 1. Ordenar Precio (debajo del título)
                     const precio = Array.from(tarjeta.querySelectorAll('*')).find(x => x.textContent.includes('€') && x !== tarjeta);
                     if (precio && el.nextElementSibling !== precio) {
                         el.after(precio);
                         precio.style.display = 'block';
-                        precio.style.marginBottom = '5px';
+                        precio.style.marginBottom = '4px';
                     }
 
-                    let divContador = tarjeta.querySelector('.contador-pedidos-extra');
-                    if (!divContador) {
-                        divContador = document.createElement('div');
-                        divContador.className = 'contador-pedidos-extra';
-                        tarjeta.appendChild(divContador);
+                    // 2. Inyectar Contador
+                    let contadorEl = tarjeta.querySelector('.contador-pedidos-extra');
+                    if (!contadorEl) {
+                        contadorEl = document.createElement('div');
+                        contadorEl.className = 'contador-pedidos-extra';
+                        tarjeta.appendChild(contadorEl);
                     }
                     
-                    const textoContador = `📦 ${numPedidos} Pedidos`;
-                    if (divContador.textContent !== textoContador) {
-                        divContador.textContent = textoContador;
+                    const textoFinal = `📦 ${num} Pedidos`;
+                    if (contadorEl.textContent !== textoFinal) {
+                        contadorEl.textContent = textoFinal;
                     }
                 }
             }
         });
 
-        // --- C. TEXTOS (Histórico -> Anual) ---
+        // --- C. TEXTOS GENERALES ---
         document.querySelectorAll('*').forEach(el => {
             if (el.children.length === 0 && el.textContent.trim()) {
                 const t = el.textContent.trim().toUpperCase();
