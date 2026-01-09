@@ -12,19 +12,9 @@
   <link rel="manifest" href="./manifest.webmanifest">
 
   <style>
-    /* --- ESTILOS AUXILIARES --- */
-    
-    /* 1. Barras de objetivos (Solo el gráfico, no el texto) */
-    .objetivo-barra-track-destacado {
-        background-color: #e2e8f0 !important; /* Gris suave para que se vea el recorrido */
-        opacity: 1 !important;
-    }
-    .objetivo-barra-fill-destacado {
-        /* Aseguramos que el azul se vea bien */
-        opacity: 1 !important;
-    }
+    /* --- ESTILOS AUXILIARES (Solo inyectados donde hace falta) --- */
 
-    /* 2. Contador de pedidos (Tu estilo preferido) */
+    /* 1. Contador de pedidos en tarjetas */
     .contador-pedidos-extra {
         display: block;
         margin-top: 5px;
@@ -35,7 +25,7 @@
         font-weight: 700;
     }
 
-    /* 3. Euro Grande en el menú */
+    /* 2. Euro Grande en el menú de abajo */
     .euro-fix-menu {
         font-size: 24px !important;
         display: inline-block;
@@ -43,14 +33,14 @@
         margin-bottom: 2px;
     }
 
-    /* 4. Textos fijos */
+    /* 3. Textos fijos (Anual) */
     .texto-anual {
         text-transform: uppercase !important;
         font-weight: 700 !important;
         color: #3b82f6 !important;
     }
     
-    /* 5. Fechas */
+    /* 4. Fechas */
     .fecha-espanol {
         font-weight: 600;
         color: #1e293b;
@@ -62,7 +52,7 @@
 
   <script>
     // ==========================================
-    // 1. CÁLCULO DE PEDIDOS
+    // 1. CÁLCULO DE PEDIDOS (Lógica Robusta)
     // ==========================================
     function contarPedidos() {
         const resultado = { 'ASTURIAS': 0, 'CANTABRIA': 0, 'LEON': 0, 'GALICIA': 0 };
@@ -75,7 +65,6 @@
 
             const anio = localStorage.getItem('selectedYear') || new Date().getFullYear().toString();
             
-            // Mapeo robusto
             const mapaClientes = {};
             if(db.clients) {
                 db.clients.forEach(c => {
@@ -108,13 +97,29 @@
     // ==========================================
     setInterval(() => {
         
-        // --- A. MENÚ INFERIOR ---
+        // --- A. ARREGLO MENÚ INFERIOR (CON PROTECCIÓN) ---
         const etiquetasMenu = ["Totales", "Factura", "Dash", "Pedidos", "Clientes", "Alertas", "Objetivos", "Mapa"];
+        
         etiquetasMenu.forEach(label => {
+            // Buscamos elementos que contengan la palabra (ej: "Dash")
             const elementosTexto = Array.from(document.querySelectorAll('span, div, p, a')).filter(el => el.textContent.trim() === label);
+            
             elementosTexto.forEach(textoEl => {
                 const boton = textoEl.closest('a') || textoEl.closest('[role="button"]') || textoEl.parentElement;
+                
                 if (boton) {
+                    // --- EL CANDADO DE SEGURIDAD (SENSOR DE POSICIÓN) ---
+                    const rect = boton.getBoundingClientRect();
+                    const alturaPantalla = window.innerHeight;
+                    
+                    // Si el elemento NO está en los últimos 100px de la pantalla (el pie), LO IGNORAMOS.
+                    // Esto evita que pinte de blanco el logo de arriba o la tarjeta de en medio.
+                    if (rect.top < (alturaPantalla - 100)) {
+                        return; // ¡No tocar! No es el menú de abajo.
+                    }
+                    // -----------------------------------------------------
+
+                    // Aplicar limpieza SOLO al menú de abajo
                     boton.style.backgroundColor = 'transparent';
                     boton.style.boxShadow = 'none';
                     boton.style.border = 'none';
@@ -124,14 +129,17 @@
                         if(hijo.tagName !== 'SVG' && hijo.tagName !== 'IMG') {
                             hijo.style.color = '#ffffff';
                         }
+                        // Símbolo Euro
                         if (label === "Totales" && hijo.textContent.includes('€')) {
                             if (!hijo.classList.contains('euro-fix-menu')) hijo.classList.add('euro-fix-menu');
                         }
                     });
 
+                    // Filtro blanco para iconos
                     const iconos = boton.querySelectorAll('svg, img');
                     iconos.forEach(ico => ico.style.filter = 'brightness(0) invert(1)');
 
+                    // Indicador activo
                     const estiloComp = window.getComputedStyle(boton);
                     if (location.pathname.includes(label.toLowerCase()) || boton.className.includes('active') || estiloComp.backgroundColor.includes('235')) {
                         boton.style.borderBottom = '3px solid white';
@@ -143,7 +151,7 @@
             });
         });
 
-        // --- B. CONTADORES DE PEDIDOS ---
+        // --- B. CONTADORES DE PEDIDOS (Tarjetas) ---
         const contadores = contarPedidos();
         const zonas = ['ASTURIAS', 'CANTABRIA', 'LEON', 'LEÓN', 'GALICIA'];
 
@@ -188,36 +196,7 @@
             }
         });
 
-        // --- C. OBJETIVOS (Solo arreglar visualización de barras) ---
-        // Buscamos las etiquetas pero NO las modificamos, solo las usamos para encontrar la barra
-        document.querySelectorAll('span, div, p, h3, h4').forEach(el => {
-            const txt = el.textContent.trim();
-            if(txt.includes('Objetivo') && txt.length < 30) {
-                // NO TOCAMOS EL TEXTO (el)
-                
-                // Buscamos la barra cercana
-                let container = el.parentElement;
-                if(container) {
-                    // Buscamos la barra de relleno (div con width % y color de fondo)
-                    const filler = Array.from(container.querySelectorAll('div')).find(div => {
-                        const s = window.getComputedStyle(div);
-                        return (s.backgroundColor.includes('37') || s.backgroundColor.includes('235')) && div.style.width;
-                    });
-
-                    if(filler) {
-                        if(!filler.classList.contains('objetivo-barra-fill-destacado')) {
-                            filler.classList.add('objetivo-barra-fill-destacado');
-                        }
-                        // Al padre (el track) le damos un poco de color para que se vea el hueco
-                        if(filler.parentElement && !filler.parentElement.classList.contains('objetivo-barra-track-destacado')) {
-                            filler.parentElement.classList.add('objetivo-barra-track-destacado');
-                        }
-                    }
-                }
-            }
-        });
-
-        // --- D. TEXTOS GENERALES ---
+        // --- C. TEXTOS (Histórico -> Anual) ---
         document.querySelectorAll('*').forEach(el => {
             if (el.children.length === 0 && el.textContent.trim()) {
                 const t = el.textContent.trim().toUpperCase();
@@ -231,7 +210,7 @@
             }
         });
 
-        // --- E. FECHAS ---
+        // --- D. FECHAS ---
         document.querySelectorAll('td, span, p').forEach(el => {
             const t = el.textContent.trim();
             if (/^\d{4}-\d{2}-\d{2}$/.test(t)) {
