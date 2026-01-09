@@ -10,7 +10,7 @@
   <title>Gestión de Ventas</title>
   
   <script type="module" crossorigin src="./index-NVVWiGcP.js"></script>
-  <link rel="stylesheet" crossorigin href="./index-cqvvk0bb.css">
+  <link rel="stylesheet" href="./index-cqvvk0bb.css">
   <link rel="manifest" href="./manifest.webmanifest">
 
   <style>
@@ -21,9 +21,9 @@
         color: #1e293b !important;
     }
     
-    /* PRECIO TOP CLIENTES (Un poco más grande, no gigante) */
+    /* PRECIO TOP CLIENTES (Ajustado, no gigante) */
     .importe-top-ajustado {
-        font-size: 1.15rem !important; /* Un 15% más grande */
+        font-size: 1.15rem !important; /* Un poco más grande */
         font-weight: 700 !important;
         color: #2563eb !important;
     }
@@ -75,10 +75,10 @@
     // 2. EL VIGILANTE DE CAMBIOS
     const observer = new MutationObserver(() => {
       
-      // A. TEXTOS GENERALES
+      // A. TEXTOS
       document.querySelectorAll('button, div, span, h1, h2, h3, p').forEach(el => {
           const texto = el.textContent.trim();
-          if (el.children.length === 0) { // Solo si es texto puro
+          if (el.children.length === 0) { 
               if (texto === "Histórico Ventas") el.textContent = "Ventas medias mensuales";
               if (texto === "Media mensual global") el.textContent = "Venta media anual";
               if (texto === "Anual" && !el.closest('button')) el.textContent = "Ventas";
@@ -95,19 +95,19 @@
           }
       });
 
-      // C. DASHBOARD TOP CLIENTES (AQUÍ ESTÁ TU AJUSTE)
+      // C. DASHBOARD TOP CLIENTES
       const titulos = document.querySelectorAll('h2, h3, div');
       titulos.forEach(titulo => {
           if (titulo.textContent.includes("Top Clientes")) {
               const contenedor = titulo.closest('div').parentElement;
               if (contenedor) {
-                 // Cambiar Botón Histórico -> Anual
+                 // Botón Anual
                  contenedor.querySelectorAll('*').forEach(el => {
                      if (el.childNodes.length === 1 && (el.textContent.includes("Histórico") || el.textContent.includes("Historico"))) {
                          el.textContent = el.textContent.replace(/Histórico|Historico/g, "Anual");
                      }
                  });
-                 // Precios UN POCO más grandes (Solo aquí)
+                 // Precios ajustados
                  contenedor.querySelectorAll('span, div, p').forEach(precio => {
                      if (precio.textContent.includes('€') && precio.textContent.length < 20) {
                          if (!precio.classList.contains('importe-top-ajustado')) {
