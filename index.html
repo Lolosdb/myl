@@ -14,19 +14,23 @@
   <link rel="manifest" href="./manifest.webmanifest">
 
   <style>
-    /* --- ESTILOS PERSONALIZADOS --- */
+    /* =========================================
+       ESTILOS DE CORRECCIÓN (CSS GLOBAL)
+       ========================================= */
 
-    /* 1. Estilos Globales */
-    body { -webkit-tap-highlight-color: transparent; }
-
-    /* 2. Fechas */
+    /* 1. FECHAS Y TEXTOS */
     .fecha-destacada {
         font-size: 1.05rem !important;
         font-weight: 600 !important;
         color: #1e293b !important;
     }
-    
-    /* 3. Top Clientes */
+    .texto-anual-fixed {
+        text-transform: uppercase !important;
+        font-weight: 700 !important;
+        color: #3b82f6 !important;
+    }
+
+    /* 2. TOP CLIENTES */
     .top-client-name {
         font-size: 1rem !important; 
         font-weight: 700 !important;
@@ -35,7 +39,6 @@
         line-height: 1.2;
         margin-bottom: 2px;
     }
-
     .importe-top-ajustado {
         font-size: 0.9rem !important;
         font-weight: 700 !important;
@@ -43,7 +46,7 @@
         display: block;
     }
 
-    /* 4. Comunidades (Estilos Críticos) */
+    /* 3. COMUNIDADES (Pedidos) */
     .community-price-moved {
         font-size: 1.2rem !important;
         font-weight: 700 !important;
@@ -52,12 +55,11 @@
         margin-bottom: 4px !important;
         display: block !important;
     }
-
     .contador-extra {
         display: flex;
         align-items: center;
         gap: 6px;
-        font-size: 0.9rem; /* Un poco más grande para que se vea bien */
+        font-size: 0.9rem;
         color: #334155;
         font-weight: 700;
         margin-top: 4px;
@@ -68,235 +70,240 @@
         border: 1px solid #e2e8f0;
     }
 
-    /* 5. ARREGLO MENÚ INFERIOR (BLANQUEAMIENTO FORZOSO) */
-    .nav-item-forced {
+    /* 4. MENÚ INFERIOR (ESTILO UNIFICADO) */
+    
+    /* A) La BARRA en sí misma: Azul fuerte */
+    .barra-menu-unificada {
+        background-color: #1d4ed8 !important; /* Azul intenso por si acaso */
+    }
+
+    /* B) Los BOTONES individuales: Limpios y Blancos */
+    .barra-menu-unificada > a, 
+    .barra-menu-unificada > div,
+    .barra-menu-unificada > button {
+        /* Aquí está el truco: Quitamos el fondo propio del botón para que se vea el azul de la barra */
+        background-color: transparent !important; 
         background: transparent !important;
+        
+        /* Quitamos bordes, sombras y radios raros */
         box-shadow: none !important;
         border: none !important;
+        border-radius: 0 !important;
+        
+        /* Alineación */
         opacity: 1 !important;
+        margin: 0 !important;
+        padding-top: 8px !important;
+        padding-bottom: 8px !important;
         display: flex !important;
         flex-direction: column !important;
         align-items: center !important;
         justify-content: center !important;
     }
 
-    /* Truco para volver blancos los iconos oscuros/grises */
-    .nav-item-forced svg, 
-    .nav-item-forced img,
-    .nav-item-forced i {
-        color: #ffffff !important;
-        fill: #ffffff !important;
-        stroke: #ffffff !important;
-        filter: brightness(0) invert(1) !important; /* Vuelve blanco cualquier cosa oscura */
-    }
-    
-    .nav-item-forced span, 
-    .nav-item-forced p, 
-    .nav-item-forced div {
-        color: #ffffff !important;
-        font-weight: 500 !important;
+    /* C) Los ICONOS: Forzados a BLANCO PURO */
+    .barra-menu-unificada svg, 
+    .barra-menu-unificada img,
+    .barra-menu-unificada i {
+        /* Esto convierte cualquier icono (gris, negro, azul) en BLANCO */
+        filter: brightness(0) invert(1) !important; 
+        opacity: 1 !important;
+        width: 24px !important; 
+        height: 24px !important;
+        margin-bottom: 2px !important;
     }
 
-    /* 6. Textos especiales */
-    .fixed-anual {
-        color: #3b82f6 !important;
-        font-weight: 700 !important;
-        text-transform: uppercase !important;
-        cursor: pointer;
+    /* D) Los TEXTOS de los botones: Blancos */
+    .barra-menu-unificada span,
+    .barra-menu-unificada p {
+        color: #ffffff !important;
+        font-size: 0.75rem !important;
+        font-weight: 500 !important;
+        opacity: 1 !important;
     }
+
+    /* E) Indicador del botón activo (Opcional: un borde blanco abajo) */
+    .item-activo-marcado {
+        border-bottom: 3px solid white !important;
+    }
+
   </style>
 </head>
 <body>
   <div id="root"></div>
 
   <script>
-    // ------------------------------------------------
-    // 1. LÓGICA DE CONTEO (Backend local)
-    // ------------------------------------------------
-    function contarPedidosPorZona() {
-        // Valores por defecto (asegura que siempre devuelva objeto)
-        const contadores = { 'ASTURIAS': 0, 'CANTABRIA': 0, 'LEON': 0, 'GALICIA': 0 };
+    // -----------------------------------------------------------
+    // 1. LÓGICA DE DATOS (Contar pedidos)
+    // -----------------------------------------------------------
+    function getContadores() {
+        const resultado = { 'ASTURIAS': 0, 'CANTABRIA': 0, 'LEON': 0, 'GALICIA': 0 };
         try {
-            const rawDb = localStorage.getItem('ventas-storage');
-            if (!rawDb) return contadores; // Si no hay DB, devuelve ceros
-            
-            const db = JSON.parse(rawDb);
+            const raw = localStorage.getItem('ventas-storage');
+            if (!raw) return resultado;
+            const db = JSON.parse(raw);
+            if (!db.orders || !Array.isArray(db.orders)) return resultado;
+
             const anio = localStorage.getItem('selectedYear') || new Date().getFullYear().toString();
             const mapa = {};
-            
-            // Mapear clientes a provincias
-            if(db.clients) {
-                db.clients.forEach(c => { 
-                    if(c.name && c.province) mapa[c.name.trim()] = c.province.toUpperCase().trim(); 
-                });
-            }
+            if(db.clients) db.clients.forEach(c => { 
+                if(c.name && c.province) mapa[c.name.trim()] = c.province.toUpperCase().trim(); 
+            });
 
-            // Contar pedidos
-            if(db.orders) {
-                db.orders.forEach(p => {
-                    // Verificación de fecha robusta
-                    if (p.date && String(p.date).startsWith(anio)) {
-                        const clientClean = p.clientName ? p.clientName.trim() : '';
-                        const prov = mapa[clientClean];
-                        if (prov) {
-                            if (prov === 'ASTURIAS') contadores['ASTURIAS']++;
-                            else if (prov === 'CANTABRIA') contadores['CANTABRIA']++;
-                            else if (prov === 'LEON' || prov === 'LEÓN') contadores['LEON']++;
-                            else if (['LUGO', 'ORENSE', 'PONTEVEDRA', 'CORUÑA', 'A CORUÑA'].includes(prov)) contadores['GALICIA']++;
-                        }
+            db.orders.forEach(o => {
+                if (o.date && String(o.date).startsWith(anio)) {
+                    const cliente = o.clientName ? o.clientName.trim() : '';
+                    const prov = mapa[cliente];
+                    if (prov) {
+                        if (prov === 'ASTURIAS') resultado['ASTURIAS']++;
+                        else if (prov === 'CANTABRIA') resultado['CANTABRIA']++;
+                        else if (prov === 'LEON' || prov === 'LEÓN') resultado['LEON']++;
+                        else if (['LUGO', 'ORENSE', 'PONTEVEDRA', 'CORUÑA', 'A CORUÑA'].includes(prov)) resultado['GALICIA']++;
                     }
-                });
-            }
-            return contadores;
-        } catch (e) { console.error(e); return contadores; }
+                }
+            });
+        } catch(e) { console.log(e); }
+        return resultado;
     }
 
-    // ------------------------------------------------
-    // 2. EL VIGILANTE (DOM)
-    // ------------------------------------------------
-    const observer = new MutationObserver(() => {
-       
-      // --- A. CORRECCIONES DE TEXTO ---
-      const replacements = {
-          "HISTÓRICO": "ANUAL",
-          "HISTORICO": "ANUAL",
-          "Histórico Ventas": "Ventas medias mensuales",
-          "Media mensual global": "VENTA MEDIA ANUAL",
-          "MEDIA MENSUAL GLOBAL": "VENTA MEDIA ANUAL"
-      };
+    // -----------------------------------------------------------
+    // 2. BUCLE DE CONTROL (Revisa y arregla la pantalla cada 250ms)
+    // -----------------------------------------------------------
+    setInterval(() => {
+        
+        // --- A. ARREGLO DEL MENÚ (FORZANDO ESTILO UNIFICADO) ---
+        // Buscamos un texto que sabemos que está en el menú (ej: Dash)
+        const testigo = Array.from(document.querySelectorAll('span, p, div')).find(el => el.textContent.trim() === 'Dash');
+        
+        if (testigo) {
+            // Subimos hasta encontrar el botón
+            const boton = testigo.closest('a') || testigo.closest('[role="button"]') || testigo.parentElement;
+            if (boton) {
+                // Subimos al padre (LA BARRA AZUL)
+                const barraMenu = boton.parentElement; 
+                
+                if (barraMenu) {
+                    // Aplicamos clase a la BARRA para asegurar que sea azul
+                    if (!barraMenu.classList.contains('barra-menu-unificada')) {
+                        barraMenu.classList.add('barra-menu-unificada');
+                    }
+                    
+                    // Revisamos cuál está activo para marcarlo
+                    Array.from(barraMenu.children).forEach(hijo => {
+                        const estilo = window.getComputedStyle(hijo);
+                        // Si el botón tiene fondo azul diferente o clase activa, le ponemos el borde
+                        if (estilo.backgroundColor.includes('23') || estilo.backgroundColor.includes('37') || hijo.className.includes('active')) {
+                           hijo.classList.add('item-activo-marcado');
+                        } else {
+                           hijo.classList.remove('item-activo-marcado');
+                        }
+                    });
+                }
+            }
+        }
 
-      document.querySelectorAll('*').forEach(el => {
-          // Solo nodos de texto directo
-          if (el.children.length === 0 && el.textContent.trim().length > 0) {
-              const txt = el.textContent.trim();
-              const txtUpper = txt.toUpperCase();
+        // --- B. TEXTOS (Histórico -> Anual) ---
+        document.querySelectorAll('*').forEach(el => {
+            if(el.children.length === 0 && el.textContent.trim().length > 0) {
+                const txt = el.textContent.trim();
+                const txtUpper = txt.toUpperCase();
 
-              // Aplicar diccionario de reemplazos
-              for (const [key, val] of Object.entries(replacements)) {
-                  if (txt === key || txtUpper === key) {
-                      el.textContent = val;
-                      if (val === "ANUAL") el.classList.add('fixed-anual');
-                  }
-              }
+                if (txtUpper === "HISTÓRICO" || txtUpper === "HISTORICO") {
+                    if (el.textContent !== "ANUAL") {
+                        el.textContent = "ANUAL";
+                        el.classList.add('texto-anual-fixed');
+                    }
+                }
+                if (txtUpper === "MEDIA MENSUAL GLOBAL" || txt === "Media mensual global") {
+                    if (el.textContent !== "VENTA MEDIA ANUAL") {
+                        el.textContent = "VENTA MEDIA ANUAL";
+                    }
+                }
+                if (txt === "Anual" && !el.closest('button') && !el.classList.contains('texto-anual-fixed')) {
+                    el.textContent = "Ventas";
+                }
+            }
+        });
 
-              // Corrección específica 'Anual' suelto
-              if (txt === "Anual" && !el.closest('button') && !el.classList.contains('fixed-anual')) {
-                  el.textContent = "Ventas";
-              }
-          }
-      });
+        // --- C. FECHAS ---
+        document.querySelectorAll('td, div, span, p').forEach(el => {
+            const txt = el.textContent.trim();
+            if (/^\d{4}-\d{2}-\d{2}$/.test(txt)) {
+                const [y, m, d] = txt.split('-');
+                el.textContent = `${d}-${m}-${y}`;
+                el.classList.add('fecha-destacada');
+            }
+        });
 
-      // --- B. FORMATO DE FECHAS (YYYY-MM-DD -> DD-MM-YYYY) ---
-      const regexFecha = /^(\d{4})-(\d{2})-(\d{2})$/;
-      document.querySelectorAll('td, div, span, p').forEach(el => {
-          if (regexFecha.test(el.textContent.trim())) {
-              el.textContent = el.textContent.trim().replace(regexFecha, '$3-$2-$1');
-              el.classList.add('fecha-destacada');
-          }
-      });
+        // --- D. TOP CLIENTES ---
+        const headerTop = Array.from(document.querySelectorAll('h2, h3, div')).find(x => x.textContent.includes("Top Clientes"));
+        if(headerTop) {
+            const card = headerTop.closest('div').parentElement; 
+            if(card) {
+                card.querySelectorAll('div').forEach(row => {
+                   const hijos = row.querySelectorAll('span, div, p');
+                   let precio = null, nombre = null;
+                   hijos.forEach(h => {
+                       if(h.textContent.includes('€')) precio = h;
+                       else if(h.textContent.length > 2) nombre = h;
+                   });
+                   if(precio && nombre) {
+                       if(!precio.classList.contains('importe-top-ajustado')) precio.classList.add('importe-top-ajustado');
+                       if(!nombre.classList.contains('top-client-name')) nombre.classList.add('top-client-name');
+                   }
+                });
+            }
+        }
 
-      // --- C. TOP CLIENTES (Estilos) ---
-      const topHeader = Array.from(document.querySelectorAll('h2, h3, div')).find(e => e.textContent.includes("Top Clientes"));
-      if (topHeader) {
-          const container = topHeader.closest('div').parentElement;
-          if (container) {
-              container.querySelectorAll('div').forEach(row => {
-                  const items = row.querySelectorAll('span, div, p');
-                  let price = null, name = null;
-                  items.forEach(i => {
-                      if (i.textContent.includes('€')) price = i;
-                      else if (i.textContent.length > 2) name = i;
-                  });
-                  
-                  if (price && name) {
-                      price.classList.add('importe-top-ajustado');
-                      name.classList.add('top-client-name');
-                  }
-              });
-          }
-      }
+        // --- E. PEDIDOS EN COMUNIDADES ---
+        const datos = getContadores();
+        const zonas = ['ASTURIAS', 'CANTABRIA', 'LEON', 'LEÓN', 'GALICIA'];
+        
+        document.querySelectorAll('h3, span, div, p').forEach(el => {
+            const zonaTxt = el.textContent.trim().toUpperCase();
+            if(zonas.includes(zonaTxt)) {
+                
+                const keyData = (zonaTxt === 'LEÓN') ? 'LEON' : zonaTxt;
+                const numPedidos = datos[keyData];
 
-      // --- D. COMUNIDADES (Lógica Reforzada) ---
-      const datos = contarPedidosPorZona();
-      const zonasObjetivo = ['ASTURIAS', 'CANTABRIA', 'LEON', 'LEÓN', 'GALICIA'];
-      
-      // Buscar elementos que contengan exactamente el nombre de la zona
-      document.querySelectorAll('h3, span, div, p, h4').forEach(el => {
-          const texto = el.textContent.trim().toUpperCase();
-          
-          if (zonasObjetivo.includes(texto)) {
-              // Normalizar clave
-              const key = (texto === 'LEÓN') ? 'LEON' : texto;
-              const cantidad = datos[key];
+                // Subir hasta encontrar el contenedor con precio
+                let candidato = el.parentElement;
+                let precioEncontrado = null;
+                for(let i=0; i<4; i++) {
+                    if(!candidato) break;
+                    const precio = Array.from(candidato.querySelectorAll('*')).find(x => x.textContent.includes('€') && x !== candidato);
+                    if(precio) {
+                        precioEncontrado = precio;
+                        break;
+                    }
+                    candidato = candidato.parentElement;
+                }
 
-              // Encontrar el contenedor "Tarjeta" subiendo en el árbol DOM
-              // Buscamos un padre que contenga también el precio
-              let parent = el.parentElement;
-              let foundPrice = null;
-              let attempts = 0;
+                if(precioEncontrado) {
+                    // Mover precio
+                    if(el.nextElementSibling !== precioEncontrado && !precioEncontrado.classList.contains('community-price-moved')) {
+                        el.after(precioEncontrado);
+                        precioEncontrado.classList.add('community-price-moved');
+                    }
 
-              // Subimos hasta 3 niveles buscando el precio hermano
-              while (parent && attempts < 4) {
-                  const possiblePrice = Array.from(parent.querySelectorAll('*')).find(x => x.textContent.includes('€') && x !== parent);
-                  if (possiblePrice) {
-                      foundPrice = possiblePrice;
-                      break; // ¡Precio encontrado!
-                  }
-                  parent = parent.parentElement;
-                  attempts++;
-              }
+                    // Insertar contador
+                    let contador = null;
+                    let hermano = precioEncontrado.nextElementSibling;
+                    if(hermano && hermano.classList.contains('contador-extra')) contador = hermano;
 
-              if (foundPrice) {
-                  // 1. Mover precio debajo del título (si no está ya)
-                  if (el.nextElementSibling !== foundPrice && !foundPrice.classList.contains('community-price-moved')) {
-                      el.after(foundPrice);
-                      foundPrice.classList.add('community-price-moved');
-                  }
+                    if(!contador) {
+                        contador = document.createElement('div');
+                        contador.className = 'contador-extra';
+                        precioEncontrado.after(contador);
+                    }
+                    if(contador.textContent !== `📦 ${numPedidos} Pedidos`) {
+                        contador.textContent = `📦 ${numPedidos} Pedidos`;
+                    }
+                }
+            }
+        });
 
-                  // 2. Insertar Contador (si no existe)
-                  // Buscamos si ya existe el contador en este 'parent'
-                  let contador = parent.querySelector('.contador-extra');
-                  
-                  // Si no existe, lo creamos
-                  if (!contador) {
-                      contador = document.createElement('div');
-                      contador.className = 'contador-extra';
-                      // Insertamos justo después del precio
-                      foundPrice.after(contador);
-                  }
-
-                  // Actualizamos el texto siempre (por si cambia de 0 a 1)
-                  if (contador.textContent !== `📦 ${cantidad} Pedidos`) {
-                      contador.innerHTML = `📦 ${cantidad} Pedidos`;
-                  }
-              }
-          }
-      });
-
-      // --- E. MENÚ INFERIOR (Limpieza Total) ---
-      const menuItems = ["Totales", "Factura", "Dash", "Pedidos", "Clientes", "Alertas", "Objetivos", "Mapa"];
-      menuItems.forEach(label => {
-          document.querySelectorAll('span, div, p, a').forEach(el => {
-              if (el.textContent.trim() === label) {
-                  // Subir hasta encontrar el elemento interactivo
-                  const btn = el.closest('a') || el.closest('[role="button"]') || el.parentElement;
-                  if (btn) {
-                      btn.classList.add('nav-item-forced');
-                      // Si el botón está "activo" (tiene clase active o fondo azul), le ponemos borde inferior
-                      const style = window.getComputedStyle(btn);
-                      if (style.backgroundColor.includes('23') || style.backgroundColor.includes('37') || btn.className.includes('active')) {
-                          btn.style.borderBottom = "3px solid white";
-                          btn.style.paddingBottom = "5px";
-                      }
-                  }
-              }
-          });
-      });
-
-    });
-
-    // Observar todo el cuerpo con configuración máxima
-    observer.observe(document.body, { childList: true, subtree: true, attributes: true });
+    }, 250);
   </script>
 </body>
 </html>
