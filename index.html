@@ -12,6 +12,12 @@
     <link rel="stylesheet" href="./index-cqvvk0bb.css?v=final">
     <link rel="manifest" href="./manifest.webmanifest">
 
+    <!-- Leaflet Map Dependencies -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
     <style>
         /* --- ESTILOS QUIRÚRGICOS --- */
 
@@ -272,6 +278,220 @@
             } catch (e) { }
 
         }, 500);
+
+        // ==========================================
+        // 3. SISTEMA DE MAPAS (LEAFLET + NOMINATIM)
+        // ==========================================
+        (function () {
+            console.log("Inicializando sistema de mapas avanzado...");
+
+            const NOMINATIM_BASE_URL = "https://nominatim.openstreetmap.org/search";
+            let mapInstance = null;
+            let markerCluster = null;
+
+            // --- A. GEOCODIFICADOR AUTOMÁTICO (Background) ---
+            async function autoGeocode() {
+                const clientsStr = localStorage.getItem('clients');
+                if (!clientsStr) return;
+                let clients = [];
+                try { clients = JSON.parse(clientsStr); } catch (e) { return; }
+
+                // Buscar cliente sin coordenadas
+                const pending = clients.find(c =>
+                    (c.address || c.direccion) &&
+                    (!c.lat || !c.lon || c.lat === 0 || c.lon === 0)
+                );
+
+                if (pending) {
+                    const address = pending.address || pending.direccion || "";
+                    const city = pending.city || pending.poblacion || "";
+                    const province = pending.province || pending.provincia || "";
+                    const query = `${address}, ${city}, ${province}, España`;
+
+                    console.log(`[GEO] Buscando: ${query}`);
+
+                    try {
+                        const res = await fetch(`${NOMINATIM_BASE_URL}?q=${encodeURIComponent(query)}&format=json&limit=1`);
+                        if (res.ok) {
+                            const data = await res.json();
+                            if (data && data.length > 0) {
+                                // Actualizar cliente
+                                pending.lat = parseFloat(data[0].lat);
+                                pending.lon = parseFloat(data[0].lon);
+
+                                // Guardar en localStorage
+                                const index = clients.findIndex(c => c.id === pending.id);
+                                if (index !== -1) {
+                                    clients[index] = pending;
+                                    localStorage.setItem('clients', JSON.stringify(clients));
+                                    console.log(`[GEO] Encontrado: ${pending.lat}, ${pending.lon}`);
+                                }
+                            }
+                        }
+                    } catch (err) {
+                        console.error("[GEO] Error:", err);
+                    }
+                }
+            }
+            // Ejecutar geocodificación cada 2 segundos (respetar API Limits)
+            setInterval(autoGeocode, 2000);
+
+            // --- B. INTERCEPTOR DE VISTA DE MAPA ---
+            function checkMapView() {
+                // Detectar si estamos en la vista de Mapa (URL o Botón activo)
+                // Buscamos si existe ya un contenedor leaflet nuestro
+                const myMap = document.getElementById('custom-leaflet-map');
+
+                // Detectar activación: Botón "Mapa" activo
+                const isMapActive = Array.from(document.querySelectorAll('span, div, p')).some(el =>
+                    el.textContent.trim() === 'Mapa' &&
+                    (el.classList.contains('active') || el.closest('.active') || el.style.color === 'white' || location.href.includes('map'))
+                );
+
+                if (isMapActive) {
+                    // Buscar el contenedor principal donde inyectar el mapa
+                    // Normalmente es el <div id="root"> o un hijo directo.
+                    // Vamos a crear un overlay si no existe
+
+                    if (!myMap) {
+                        // Crear contenedor visual
+                        const overlay = document.createElement('div');
+                        overlay.id = 'custom-leaflet-map';
+                        overlay.style.position = 'fixed';
+                        overlay.style.top = '60px'; // Dejar espacio para cabecera
+                        overlay.style.left = '0';
+                        overlay.style.width = '100%';
+                        overlay.style.height = 'calc(100% - 120px)'; // Dejar espacio para menú abajo
+                        overlay.style.zIndex = '9999';
+                        overlay.style.backgroundColor = 'white';
+                        document.body.appendChild(overlay);
+
+                        // Inicializar Leaflet
+                        mapInstance = L.map('custom-leaflet-map').setView([40.4168, -3.7038], 6); // Madrid centro
+
+                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                            attribution: '&copy; OpenStreetMap contributors'
+                        }).addTo(mapInstance);
+
+                        // Inicializar Cluster Group
+                        markerCluster = L.markerClusterGroup({
+                            maxClusterRadius: 40, // Radio pequeño para agrupar solo muy cercanos
+                            spiderfyOnMaxZoom: true,
+                            showCoverageOnHover: false,
+                            zoomToBoundsOnClick: true
+                        });
+                        mapInstance.addLayer(markerCluster);
+
+                        // Cargar marcadores
+                        reloadMarkers();
+                    } else {
+                        myMap.style.display = 'block';
+                        // Recargar marcadores por si hubo actualizaciones
+                        reloadMarkers();
+                    }
+                } else {
+                    // Si no estamos en mapa, ocultar nuestro mapa
+                    if (myMap) {
+                        myMap.style.display = 'none';
+                    }
+                }
+            }
+
+            function reloadMarkers() {
+                if (!mapInstance) return;
+
+                // Limpiar marcadores antiguos
+                mapInstance.eachLayer((layer) => {
+                    if (layer instanceof L.CircleMarker || layer instanceof L.Marker) {
+                        mapInstance.removeLayer(layer);
+                    }
+                });
+
+                const clientsStr = localStorage.getItem('clients');
+                const ordersStr = localStorage.getItem('orders');
+                if (!clientsStr) return;
+
+                try {
+                    const clients = JSON.parse(clientsStr);
+                    const orders = ordersStr ? JSON.parse(ordersStr) : [];
+
+                    const now = new Date();
+                    const thirtyDaysAgo = new Date();
+                    thirtyDaysAgo.setDate(now.getDate() - 30);
+
+                    clients.forEach(c => {
+                        if (c.lat && c.lon) {
+                            // Lógica de Último Pedido
+                            let lastOrderDate = null;
+
+                            // Buscar pedidos de este cliente (por ID o Code)
+                            // Nota: Asumimos que los pedidos tienen 'cliente_id' o similar, o filtramos por nombre si es lo único que hay
+                            // Basado en análisis previo, vinculamos por ID o CODE
+                            const clientOrders = orders.filter(o =>
+                                o.cliente_id == c.id ||
+                                o.client_code == c.code ||
+                                (o.cliente && o.cliente.includes(c.name)) // Fallback por nombre
+                            );
+
+                            if (clientOrders.length > 0) {
+                                // Ordenar por fecha descendente
+                                clientOrders.sort((a, b) => new Date(b.timestamp || b.fecha) - new Date(a.timestamp || a.fecha));
+                                const lastOrder = clientOrders[0];
+                                if (lastOrder.timestamp || lastOrder.fecha) {
+                                    lastOrderDate = new Date(lastOrder.timestamp || lastOrder.fecha);
+                                }
+                            }
+
+                            // Determinar Color
+                            // Verde (#22c55e) si pidió hace menos de 30 días
+                            // Rojo (#ef4444) si hace más o nunca pidió
+                            let color = '#ef4444'; // Rojo por defecto
+                            if (lastOrderDate && lastOrderDate >= thirtyDaysAgo) {
+                                color = '#22c55e'; // Verde
+                            }
+
+                            // Crear CircleMarker (Chincheta pequeña)
+                            // Aumentamos un poco el radio para que sea fácil de clicar en móvil, pero mantenemos visual limpio
+                            const marker = L.circleMarker([c.lat, c.lon], {
+                                radius: 8,
+                                fillColor: color,
+                                color: '#ffffff',
+                                weight: 2,
+                                opacity: 1,
+                                fillOpacity: 0.9
+                            });
+
+                            const name = c.name || c.nombre || "Cliente";
+                            const address = c.address || c.direccion || "";
+                            const lastDateStr = lastOrderDate ? lastOrderDate.toLocaleDateString() : "Sin pedidos recientes";
+
+                            marker.bindPopup(`
+                                <div style="text-align:center;">
+                                    <b>${name}</b><br>
+                                    <span style="font-size:11px; color:#555;">${address}</span><br>
+                                    <div style="margin-top:4px; padding:2px 6px; background:${color}; color:white; border-radius:4px; font-size:10px; display:inline-block;">
+                                        ${lastOrderDate ? 'Último: ' + lastDateStr : 'Sin pedidos recientes'}
+                                    </div>
+                                </div>
+                            `);
+
+                            // Añadir a cluster si existe, sino al mapa
+                            if (window.markerCluster) {
+                                markerCluster.addLayer(marker);
+                            } else {
+                                marker.addTo(mapInstance);
+                            }
+
+
+                        }
+                    });
+                } catch (e) { console.error("Error pintando mapa:", e); }
+            }
+
+            // Chequear vista cada 500ms
+            setInterval(checkMapView, 500);
+
+        })();
     </script>
 </body>
 
